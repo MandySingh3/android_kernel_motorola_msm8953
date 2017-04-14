@@ -18,6 +18,7 @@
 #include "msm8953-camera-sensor-mot-potter.dtsi"
 #include "dsi-panel-mot-tianma-520-1080p-vid.dtsi"
 #include "dsi-panel-mot-boe-520-1080p-vid.dtsi"
+#include "carrier-channel-ids.dtsi"
 #include "msm8953-potter-sensor.dtsi"
 #include "msm8953-potter-fps.dtsi"
 
@@ -984,6 +985,7 @@
 };
 &usb3 {
 	qcom,usbid-gpio = <&tlmm 59 0>;
+	qcom,no-suspend-in-chg;
 	pinctrl-names = "usbid_default","usbid_sleep";
 	pinctrl-0 = <&usb_id_active>;
 	pinctrl-1 = <&usb_id_sleep>;

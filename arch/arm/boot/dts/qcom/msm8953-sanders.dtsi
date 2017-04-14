@@ -17,7 +17,6 @@
 #include <moto-mem-reserve.h>
 #include "dsi-panel-mot-tianma-550-1080p-vid.dtsi"
 //#include "dsi-panel-mot-boe-520-1080p-vid.dtsi"
-#include "msm8953-sanders-sensor.dtsi"
 #include "msm8953-sanders-fps.dtsi"
 #include "msm8953-camera-sensor-mot-sanders.dtsi"
 
@@ -30,7 +29,8 @@
 		i2c2 = &i2c_2;
 		i2c3 = &i2c_3;
 		i2c5 = &i2c_5;
-		i2c6 = &i2c_6;
+		/delete-property/ i2c6;
+		i2c7 = &i2c_7;
 		spi1 = &spi_1;
 		spi8 = &spi_8;
 		/delete-property/ spi3;
@@ -200,8 +200,8 @@
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
 			pinctrl-2 = <&ts_release>;
-			focaltech,name = "ft5336";
-			focaltech,family-id = <0x12>;
+			focaltech,name = "ft5436";
+			focaltech,family-id = <0x54>;
 			focaltech,reset-gpio = <&tlmm 64 0x00>;
 			focaltech,irq-gpio = <&tlmm 65 0x2008>;
 			focaltech,display-coords = <0 0 1080 1920>;
@@ -211,11 +211,11 @@
 			focaltech,hard-reset-delay-ms = <20>;
 			focaltech,soft-reset-delay-ms = <200>;
 			focaltech,num-max-touches = <10>;
-			focaltech,fw-delay-aa-ms = <30>;
-			focaltech,fw-delay-55-ms = <30>;
-			focaltech,fw-upgrade-id1 = <0x79>;
-			focaltech,fw-upgrade-id2 = <0x11>;
-			focaltech,fw-delay-readid-ms = <10>;
+			focaltech,fw-delay-aa-ms = <2>;
+			focaltech,fw-delay-55-ms = <2>;
+			focaltech,fw-upgrade-id1 = <0x54>;
+			focaltech,fw-upgrade-id2 = <0x2c>;
+			focaltech,fw-delay-readid-ms = <20>;
 			focaltech,fw-delay-era-flsh-ms = <2000>;
 			focaltech,fw-auto-cal;
 			focaltech,ignore-id-check;
@@ -247,41 +247,44 @@
 		dma-names = "tx", "rx";
 	};
 
-	i2c_6: i2c@7af6000 { /* BLSP2 QUP2 */
+
+	i2c_7: i2c@7af7000 { /* BLSP2 QUP1 */
+		status = "ok";
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		reg = <0x7af6000 0x600>;
 		reg-names = "qup_phys_addr";
+		reg = <0x7af7000 0x600>;
 		interrupt-names = "qup_irq";
-		interrupts = <0 300 0>;
-		dmas = <&dma_blsp1 6 64 0x20000020 0x20>,
-			<&dma_blsp1 7 32 0x20000020 0x20>;
-		dma-names = "tx", "rx";
-		qcom,noise-rjct-scl = <0>;
-		qcom,noise-rjct-sda = <0>;
-		qcom,master-id = <84>;
+		interrupts = <0 301 0>;
 		qcom,clk-freq-out = <400000>;
 		qcom,clk-freq-in  = <19200000>;
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
-			 <&clock_gcc clk_gcc_blsp2_qup2_i2c_apps_clk>;
+			 <&clock_gcc clk_gcc_blsp2_qup3_i2c_apps_clk>;
 		pinctrl-names = "i2c_active", "i2c_sleep";
-		pinctrl-0 = <&i2c_6_active>;
-		pinctrl-1 = <&i2c_6_sleep>;
+		pinctrl-0 = <&i2c_7_active>;
+		pinctrl-1 = <&i2c_7_sleep>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <84>;
+		dmas = <&dma_blsp2 8 64 0x20000020 0x20>,
+			<&dma_blsp2 9 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
 
-		elan2@49 {
-			compatible = "epl,epl8802";
-			reg = <0x49>;
-			id = <1>;
-			num-of-rp = <2>;
-			epl,irq-gpio = <&tlmm 31 0x00>;
-			pinctrl-names = "epl8802_default", "epl8802_suspend";
-			pinctrl-0 = <&epl8802_2_active>;
-			pinctrl-1 = <&epl8802_2_suspend>;
+		cs35l35@40 {
+			compatible = "cirrus,cs35l35";
+			reg = <0x40>;
+			reset-gpio = <&tlmm 137 0>;
+			irq-gpio = <&tlmm 132 1>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <132 8>;
 
+			VA-supply = <&dummy_vreg>;
+			VP-supply = <&dummy_vreg>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&cs35l35_irq_default &cs35l35_reset_default>;
 		};
-
 	};
 
 	vci_fci_vreg: vci_fci_vreg {
@@ -301,7 +304,7 @@
 		<0x07884000 0x1f000>;
 		interrupt-names = "spi_irq", "spi_bam_irq";
 		interrupts = <0 95 0>, <0 238 0>;
-		spi-max-frequency = <30000000>;
+		spi-max-frequency = <50000000>;
 		pinctrl-names = "spi_default", "spi_sleep";
 		pinctrl-0 = <&spi_1_active &spi1_cs0_active>;
 		pinctrl-1 = <&spi_1_sleep &spi1_cs0_sleep>;
@@ -320,17 +323,18 @@
 			status = "ok";
 			compatible = "fci,isdbt";
 			reg = <0>;
-			spi-max-frequency = <30000000>;
+			spi-max-frequency = <50000000>;
 			irq-gpio = <&tlmm 38 0>;
 			enable-gpio = <&tlmm 8 0>;
 			reset-gpio = <&tlmm 36 0>;
 			vdd_enable = <&tlmm 33 0>;
+			vdd_enable_support;
 			enable-active-high;
 			pinctrl-names = "default";
 			pinctrl-0 = <&dtv_output_default &dtv_input_default>;
 			isdbt_vdd-supply = <&vci_fci_vreg>;
 			qcom,vdd-min-max-voltage = <1800000 1800000>;
-			bbm-xtal-freq = <37400>;
+			bbm-xtal-freq = <26000>;
 		};
 	};
 
@@ -360,10 +364,7 @@
 	};
 
 	qcom,sensor-information {
-		sensor_information18: qcom,sensor-information-18 {
-			qcom,sensor-type = "adc";
-			qcom,sensor-name = "chg_therm";
-		};
+		/delete-node/ sensor_information18;
 
 		sensor_information21: qcom,sensor-information-21 {
 			qcom,sensor-type = "adc";
@@ -402,23 +403,32 @@
 		linux,contiguous-region = <&tzlog_bck_mem>;
 	};
 
+	ospl {
+		compatible = "mmi,ospl2xx";
+		status = "ok";
+		mmi,ospl-tune-index = <0 1 2 3>;
+		mmi,ospl-afe-port-id = <0x1016 0x1017>;
+		mmi,ospl-left-feedback;
+	};
+
 	sound {
 		status = "okay";
 		qcom,model = "msm8953-snd-card";
 		qcom,msm-mbhc-hphl-swh = <1>;
 		qcom,msm-mbhc-gnd-swh = <0>;
-		qcom,msm-hs-micbias-type = "external";
+		qcom,msm-micbias1-ext-cap;
+		qcom,msm-hs-micbias-type = "internal";
+		qcom,msm-ext-pa = "quinary";
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"INT_LDO_H", "MCLK",
 			"MIC BIAS External", "Handset Mic",
-			"MIC BIAS External2", "Headset Mic",
+			"MIC BIAS Internal2", "Headset Mic",
 			"MIC BIAS External", "Secondary Mic",
 			"AMIC1", "MIC BIAS External",
-			"AMIC2", "MIC BIAS External2",
+			"AMIC2", "MIC BIAS Internal2",
 			"AMIC3", "MIC BIAS External";
 		/delete-property/ qcom,cdc-us-euro-gpios;
-		/delete-property/ qcom,msm-micbias1-ext-cap;
 		/delete-property/ qcom,hdmi-dba-codec-rx;
 		/delete-property/ asoc-wsa-codec-names;
 		/delete-property/ asoc-wsa-codec-prefixes;
@@ -426,41 +436,96 @@
 		/delete-property/ msm-vdd-wsa-switch-supply;
 		/delete-property/ qcom,msm-vdd-wsa-switch-voltage;
 		/delete-property/ qcom,msm-vdd-wsa-switch-current;
-
 		qcom,msm-gpios =
 			"pri_i2s",
-			"comp_gpio";
+			"quin_i2s",
+			"comp_gpio",
+			"cs35l35_mclk";
+
 		qcom,pinctrl-names =
 			"all_off",
 			"pri_i2s_act",
+			"quin_act",
+			"quin_pri_i2s_act",
 			"comp_gpio_act",
-			"comp_gpio_pri_i2s_act";
+			"comp_gpio_pri_i2s_act",
+			"comp_gpio_quin_act",
+			"comp_gpio_quin_pri_i2s_act",
+			"cs35l35_mclk_act",
+			"cs35l35_mclk_pri_i2s_act",
+			"cs35l35_mclk_quin_act",
+			"cs35l35_mclk_quin_pri_i2s_act",
+			"cs35l35_mclk_comp_gpio_act",
+			"cs35l35_mclk_comp_gpio_pri_i2s_act",
+			"cs35l35_mclk_comp_gpio_quin_act",
+			"all_act";
+
 		pinctrl-names =
 			"all_off",
 			"pri_i2s_act",
+			"quin_act",
+			"quin_pri_i2s_act",
 			"comp_gpio_act",
-			"comp_gpio_pri_i2s_act";
+			"comp_gpio_pri_i2s_act",
+			"comp_gpio_quin_act",
+			"comp_gpio_quin_pri_i2s_act",
+			"cs35l35_mclk_act",
+			"cs35l35_mclk_pri_i2s_act",
+			"cs35l35_mclk_quin_act",
+			"cs35l35_mclk_quin_pri_i2s_act",
+			"cs35l35_mclk_comp_gpio_act",
+			"cs35l35_mclk_comp_gpio_pri_i2s_act",
+			"cs35l35_mclk_comp_gpio_quin_act",
+			"all_act";
 
 		pinctrl-0 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_sus
-			&cdc_pdm_lines_2_sus>;
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_off>;
 		pinctrl-1 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_sus
-			&cdc_pdm_lines_2_act>;
-		pinctrl-2 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_act
-			&cdc_pdm_lines_2_sus>;
-		pinctrl-3 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_act
-			&cdc_pdm_lines_2_act>;
-		/delete-property/ pinctrl-4;
-		/delete-property/ pinctrl-5;
-		/delete-property/ pinctrl-6;
-		/delete-property/ pinctrl-7;
-		/delete-property/ pinctrl-8;
-		/delete-property/ pinctrl-9;
-		/delete-property/ pinctrl-10;
-		/delete-property/ pinctrl-11;
-		/delete-property/ pinctrl-12;
-		/delete-property/ pinctrl-13;
-		/delete-property/ pinctrl-14;
-		/delete-property/ pinctrl-15;
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_off>;
+		pinctrl-2 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-3 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-4 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_off>;
+		pinctrl-5 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_off>;
+		pinctrl-6 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-7 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-8 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-9 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-10 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_on>;
+		pinctrl-11 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_sus
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_on>;
+		pinctrl-12 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-13 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_sus
+			&pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-14 = <&cdc_pdm_lines_sus &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_sus &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_on>;
+		pinctrl-15 = <&cdc_pdm_lines_act &cdc_pdm_comp_lines_act
+			&cdc_pdm_lines_2_act &pri_tlmm_lines_act
+			&pri_tlmm_ws_act &cs35l35_mclk_on>;
 
 		asoc-codec = <&stub_codec>, <&pm8953_diangu_dig>;
 		asoc-codec-names = "msm-stub-codec.1", "cajon_codec";
@@ -496,9 +561,7 @@
 	};
 };
 
-
 &pmi8950_mpps {
-
 	mpp@a100 { /* MPP2 MOD_MPHY_I2S_SEL */
 		qcom,mode = <1>;	/* Digital output */
 		qcom,vin-sel = <2>;	/* 1.8 */
@@ -518,7 +581,15 @@
 };
 
 &pmi_haptic{
-	qcom,vmax-mv = <2600>;
+	qcom,vmax-mv = <2545>;
+	qcom,wave-play-rate-us = <4255>;
+	qcom,actuator-type = "lra";
+	qcom,wave-shape = "sine";
+	qcom,lra-auto-res-mode="qwd";
+	qcom,lra-high-z="opt1";
+	qcom,lra-res-cal-period = <4>;
+	qcom,correct-lra-drive-freq;
+	qcom,misc-trim-error-rc19p2-clk-reg-present;
 };
 
 &blsp1_uart0 {
@@ -576,7 +647,7 @@
 		1 &intc 0 221 0
 		2 &tlmm 133 0>;
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
-	cd-gpios = <&tlmm 133 0x0>;
+	cd-gpios = <&tlmm 133 0x1>;
 	qcom,cd-wakeup;
 
 	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000
@@ -752,7 +823,9 @@
 
 &pm8953_vadc {
 	chan@11 {
-		label = "chg_therm";
+		label = "board_id";
+		qcom,scale-function = <0>;
+		/delete-property/ qcom,vadc-thermal-node;
 	};
 
 	chan@13 {
@@ -965,6 +1038,10 @@
 
 &pm8953_l6 {
 	regulator-always-on;
+};
+
+&pm8953_l10 {
+        regulator-always-on;
 };
 
 &pm8953_l22 {

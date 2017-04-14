@@ -100,6 +100,19 @@
 		qcom,hdmi-dba-codec-rx;
 		asoc-codec = <&stub_codec>, <&hdmi_dba>;
 		asoc-codec-names = "msm-stub-codec.1", "msm-hdmi-dba-codec-rx";
+		cs47l35,dapm-routing =
+			"IN1AL", "MICBIAS1A",
+			"IN1AR", "MICBIAS1B",
+			"IN2L", "MICBIAS2B",
+			"IN1BR", "MICBIAS2A";
+	};
+
+	ospl {
+		compatible = "mmi,ospl2xx";
+		status = "ok";
+		mmi,ospl-tune-index = <0 1 2 3>;
+		mmi,ospl-afe-port-id = <16384 16387>;
+		mmi,ospl-left-feedback;
 	};
 
 
@@ -272,7 +285,7 @@
 			status = "ok";
 			reg = <0x1000 0x100>;
 			compatible = "qcom,leds-atc";
-			linux,name = "charging";
+			linux,name = "white";
 			qcom,ctrl-reg = <0x243>;
 		};
 	};

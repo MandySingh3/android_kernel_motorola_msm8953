@@ -293,6 +293,11 @@ struct smbchg_chip {
 	bool				hvdcp_det_done;
 	int				afvc_mv;
 	enum power_supply_type          supply_type;
+	bool				enabled_weak_charger_check;
+	bool				adapter_vbus_collapse_flag;
+	int				weak_charger_valid_cnt;
+	ktime_t			weak_charger_valid_cnt_ktmr;
+	ktime_t			adapter_vbus_collapse_ktmr;
 };
 
 static struct smbchg_chip *the_chip;
@@ -795,7 +800,7 @@ static inline char *get_usb_type_name(int type)
 
 static enum power_supply_type usb_type_enum[] = {
 	POWER_SUPPLY_TYPE_USB,		/* bit 0 */
-	POWER_SUPPLY_TYPE_UNKNOWN,	/* bit 1 */
+	POWER_SUPPLY_TYPE_USB_DCP,	/* bit 1 */
 	POWER_SUPPLY_TYPE_USB_DCP,	/* bit 2 */
 	POWER_SUPPLY_TYPE_USB_CDP,	/* bit 3 */
 	POWER_SUPPLY_TYPE_USB,		/* bit 4 error case, report SDP */
@@ -868,10 +873,6 @@ static int get_prop_batt_status(struct smbchg_chip *chip)
 		dev_err(chip->dev, "Unable to read RT_STS rc = %d\n", rc);
 		return POWER_SUPPLY_STATUS_UNKNOWN;
 	}
-
-	if ((chip->stepchg_state != STEP_MAX) && (reg & BAT_TCC_REACHED_BIT) &&
-	    !chip->demo_mode && (chip->temp_state == POWER_SUPPLY_HEALTH_GOOD))
-		return POWER_SUPPLY_STATUS_FULL;
 
 	if ((chip->stepchg_state == STEP_FULL) && !(batt_soc < 100) &&
 	    !chip->demo_mode && (chip->temp_state == POWER_SUPPLY_HEALTH_GOOD))
@@ -1281,6 +1282,21 @@ static int calc_dc_thermal_limited_current(struct smbchg_chip *chip,
 #define EN_BAT_CHG_BIT		BIT(1)
 static int smbchg_charging_en(struct smbchg_chip *chip, bool en)
 {
+	if (en == true) {
+		if ((!chip->ext_high_temp) &&
+		(chip->temp_state != POWER_SUPPLY_HEALTH_COLD) &&
+		(chip->temp_state != POWER_SUPPLY_HEALTH_OVERHEAT) &&
+		(chip->stepchg_state != STEP_FULL))
+			smbchg_masked_write(chip, chip->bat_if_base +
+			CMD_CHG_REG, EN_BAT_CHG_BIT, en ? 0 : EN_BAT_CHG_BIT);
+		else {
+			dev_err(chip->dev,
+				"Enable conflict! ext_high_temp: %d,temp_state: %d,step_chg_state %d\n",
+				chip->ext_high_temp, chip->temp_state,
+				chip->stepchg_state);
+			return -EINVAL;
+		}
+	}
 	/* The en bit is configured active low */
 	return smbchg_masked_write(chip, chip->bat_if_base + CMD_CHG_REG,
 			EN_BAT_CHG_BIT, en ? 0 : EN_BAT_CHG_BIT);
@@ -4814,12 +4830,6 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 	usb_type_name = get_usb_type_name(type);
 	chip->supply_type = get_usb_supply_type(type);
 
-	if (chip->usb_psy) {
-		pr_smb(PR_MISC, "setting usb psy dp=f dm=f\n");
-		power_supply_set_dp_dm(chip->usb_psy,
-				POWER_SUPPLY_DP_DM_DPF_DMF);
-	}
-
 	/* Rerun APSD 1 sec later */
 	if ((chip->supply_type == POWER_SUPPLY_TYPE_USB) &&
 	    !chip->apsd_rerun_cnt && !chip->factory_mode) {
@@ -4930,15 +4940,114 @@ out:
 }
 
 /**
+ * is_vbus_collapse() - this is called used to detect whether vbus collapse
+ * @chip: pointer to smbchg_chip chip
+ */
+static bool is_vbus_collapse(struct smbchg_chip *chip)
+{
+	int rc;
+	u8 reg;
+
+	rc = smbchg_read(chip, &reg, chip->usb_chgpth_base + RT_STS, 1);
+	if (rc < 0) {
+		dev_err(chip->dev, "Couldn't read usb rt status rc = %d\n", rc);
+		return false;
+	}
+
+	return (reg & USBIN_UV_BIT);
+}
+
+#define WEAK_CHARGER_VALID_DELTA_MS   500
+#define WEAK_CHARGER_CURRENT    1000
+#define WEAK_CHARGER_CNT_DELTA_MS    1000
+/**
+ * weak_charger_check() - this is called used to detect weak charger
+ * @chip: pointer to smbchg_chip chip
+ */
+static int weak_charger_check(void *_chip)
+{
+	int rc;
+	bool vbus_collapse;
+	ktime_t delta_ktmr;
+	struct smbchg_chip *chip = _chip;
+	union power_supply_propval prop = {0, };
+
+	if (!chip->enabled_weak_charger_check)
+		return 0;
+
+	if (chip->usb_psy) {
+		rc = chip->usb_psy->get_property(chip->usb_psy,
+			POWER_SUPPLY_PROP_TYPE, &prop);
+		if (rc < 0) {
+			dev_err(chip->dev,
+			"could not read USB current_max property, rc=%d\n", rc);
+			return 0;
+		}
+	} else
+		return 0;
+
+	vbus_collapse = is_vbus_collapse(chip);
+	if (vbus_collapse && (prop.intval == POWER_SUPPLY_TYPE_USB_DCP)) {
+		/* DCP VBUS collapse  */
+		chip->adapter_vbus_collapse_ktmr = ktime_get_boottime();
+		chip->adapter_vbus_collapse_flag = true;
+	} else if (!vbus_collapse && (prop.intval == POWER_SUPPLY_TYPE_USB_DCP)
+		&& (chip->adapter_vbus_collapse_flag)) {
+		/* DCP VBUS recovery from last collapse*/
+		chip->adapter_vbus_collapse_flag = false;
+		delta_ktmr = ktime_sub(ktime_get_boottime(),
+			chip->adapter_vbus_collapse_ktmr);
+
+		if (ktime_to_ms(delta_ktmr) > WEAK_CHARGER_VALID_DELTA_MS) {
+			chip->weak_charger_valid_cnt = 0;
+			return 0;
+		}
+
+		pr_info("weak charger valid: %lld,%lld,%lld,%d\n",
+			ktime_to_ms(delta_ktmr),
+			ktime_to_ms(ktime_get_boottime()),
+			ktime_to_ms(chip->adapter_vbus_collapse_ktmr),
+			chip->weak_charger_valid_cnt);
+
+		chip->weak_charger_valid_cnt++;
+		if (1 == chip->weak_charger_valid_cnt) {
+			chip->weak_charger_valid_cnt_ktmr =
+				ktime_get_boottime();
+		} else if (2 == chip->weak_charger_valid_cnt) {
+			chip->weak_charger_valid_cnt = 0;
+			delta_ktmr = ktime_sub(ktime_get_boottime(),
+				chip->weak_charger_valid_cnt_ktmr);
+			if (ktime_to_ms(delta_ktmr) >
+				WEAK_CHARGER_CNT_DELTA_MS) {
+				return 0;
+			}
+			pr_info("weak charger, set weak charger limit current\n");
+			chip->usb_target_current_ma = WEAK_CHARGER_CURRENT;
+			chip->usb_tl_current_ma = calc_thermal_limited_current(
+				chip, chip->usb_target_current_ma);
+			smbchg_set_usb_current_max(
+				chip, chip->usb_tl_current_ma);
+			power_supply_set_current_limit(chip->usb_psy,
+				chip->usb_target_current_ma * 1000);
+			}
+		} else {
+		chip->adapter_vbus_collapse_flag = false;
+		chip->weak_charger_valid_cnt = 0;
+	}
+
+	return 0;
+}
+
+/**
  * usbin_uv_handler() - this is called when USB charger is removed
  * @chip: pointer to smbchg_chip chip
  * @rt_stat: the status bit indicating chg insertion/removal
  */
 static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 {
-#ifdef QCOM_BASE
 	int rc;
 	u8 reg;
+#ifdef QCOM_BASE
 	union power_supply_propval prop = {0, };
 #endif
 	struct smbchg_chip *chip = _chip;
@@ -4946,12 +5055,22 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 
 	pr_smb(PR_STATUS, "chip->usb_present = %d usb_present = %d\n",
 			chip->usb_present, usb_present);
-#ifdef QCOM_BASE
+
+	weak_charger_check(_chip);
+
 	rc = smbchg_read(chip, &reg, chip->usb_chgpth_base + RT_STS, 1);
 	if (rc < 0) {
 		dev_err(chip->dev, "Couldn't read usb rt status rc = %d\n", rc);
 		goto out;
 	}
+
+	if (!(reg & USBIN_UV_BIT) && !(reg & USBIN_SRC_DET_BIT) &&
+	    chip->usb_psy) {
+		pr_smb(PR_MISC, "setting usb psy dp=f dm=f\n");
+		power_supply_set_dp_dm(chip->usb_psy,
+				POWER_SUPPLY_DP_DM_DPF_DMF);
+	}
+#ifdef QCOM_BASE
 	reg &= USBIN_UV_BIT;
 
 	if (reg && chip->usb_psy && !chip->usb_psy->get_property(chip->usb_psy,
@@ -4968,8 +5087,8 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 		}
 	}
 	smbchg_wipower_check(chip);
-out:
 #endif
+out:
 	return IRQ_HANDLED;
 }
 
@@ -4989,8 +5108,7 @@ static irqreturn_t src_detect_handler(int irq, void *_chip)
 	struct smbchg_chip *chip = _chip;
 	bool usb_present;
 
-	pr_smb(PR_STATUS, "chip->usb_present = %d usb_present = %d\n",
-			chip->usb_present, usb_present);
+	pr_smb(PR_INTERRUPT, "triggered\n");
 
 	rc = smbchg_read(chip, &reg, chip->usb_chgpth_base + RT_STS, 1);
 	if (rc < 0) {
@@ -5230,6 +5348,32 @@ static irqreturn_t usbid_change_handler(int irq, void *_chip)
 	return IRQ_HANDLED;
 }
 
+#define WAIT_APSD_CNT_MAX 30
+static int wait_for_apsd_complete(struct smbchg_chip *chip)
+{
+	int rc;
+	int count = 0;
+	u8 reg;
+
+	while (count < WAIT_APSD_CNT_MAX) {
+		rc = smbchg_read(chip, &reg,
+			chip->usb_chgpth_base + RT_STS, 1);
+		if (rc < 0) {
+			dev_err(chip->dev, "read usb RTS rc = %d\n", rc);
+			break;
+		}
+		pr_smb(PR_MISC, "read%d RT_STS = 0x%x\n", count, reg);
+
+		if ((reg & USBIN_UV_BIT) || (reg & USBIN_SRC_DET_BIT))
+			break;
+
+		count++;
+		msleep(100);
+	}
+
+	return 0;
+}
+
 static int determine_initial_status(struct smbchg_chip *chip)
 {
 	/*
@@ -5246,6 +5390,7 @@ static int determine_initial_status(struct smbchg_chip *chip)
 	batt_cold_handler(0, chip);
 	chg_term_handler(0, chip);
 	usbid_change_handler(0, chip);
+	wait_for_apsd_complete(chip);
 	src_detect_handler(0, chip);
 	smbchg_charging_en(chip, 0);
 #ifdef QCOM_BASE
@@ -5864,6 +6009,20 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 		}
 	}
 
+	rc = smbchg_read(chip, &reg, chip->usb_chgpth_base + RT_STS, 1);
+	if (rc < 0) {
+		dev_err(chip->dev, "Couldn't read usb rts rc = %d\n", rc);
+		return rc;
+	}
+	pr_smb(PR_MISC, "read RT_STS = 0x%x\n", reg);
+
+	if (!(reg & USBIN_UV_BIT) && !(reg & USBIN_SRC_DET_BIT) &&
+	    chip->usb_psy) {
+		pr_smb(PR_MISC, "setting usb psy dp=f dm=f\n");
+		power_supply_set_dp_dm(chip->usb_psy,
+				POWER_SUPPLY_DP_DM_DPF_DMF);
+	}
+
 	if (chip->force_aicl_rerun)
 		rc = smbchg_aicl_config(chip);
 
@@ -6216,6 +6375,9 @@ static int smb_parse_dt(struct smbchg_chip *chip)
 					"qcom,force-aicl-rerun");
 	chip->enable_hvdcp_9v = of_property_read_bool(node,
 					"qcom,enable-hvdcp-9v");
+
+	chip->enabled_weak_charger_check = of_property_read_bool(node,
+					"qcom,weak-charger-check-enable");
 
 	/* parse the battery missing detection pin source */
 	rc = of_property_read_string(chip->spmi->dev.of_node,
@@ -7743,9 +7905,10 @@ static void smbchg_heartbeat_work(struct work_struct *work)
 			chip->stepchg_state = STEP_MAX;
 		chip->stepchg_state_holdoff = 0;
 	} else if ((chip->stepchg_state == STEP_MAX) &&
-		   (batt_ma < 0) && (chip->usb_present) &&
+		    (chip->usb_present) &&
 		   ((batt_mv + HYST_STEP_MV) >= chip->stepchg_voltage_mv)) {
-		batt_ma *= -1;
+			if (batt_ma < 0)
+				batt_ma *= -1;
 
 		index = smbchg_get_pchg_current_map_index(chip);
 		if (chip->pchg_current_map_data[index].primary ==
@@ -7913,25 +8076,29 @@ static int smbchg_reboot(struct notifier_block *nb,
 		return NOTIFY_DONE;
 	}
 
-	if (chip->factory_mode) {
-		switch (event) {
-		case SYS_POWER_OFF:
-			/* Disable Charging */
-			smbchg_charging_en(chip, 0);
+	switch (event) {
+	case SYS_POWER_OFF:
+		/* Disable Charging */
+		smbchg_charging_en(chip, 0);
 
-			/* Suspend USB and DC */
-			smbchg_usb_suspend(chip, true);
-			smbchg_dc_suspend(chip, true);
+		/* Suspend USB and DC */
+		smbchg_usb_suspend(chip, true);
+		smbchg_dc_suspend(chip, true);
 
-			while (is_usb_present(chip))
-				msleep(100);
-			dev_warn(chip->dev, "VBUS UV wait 1 sec!\n");
-			/* Delay 1 sec to allow more VBUS decay */
-			msleep(1000);
+		power_supply_set_present(chip->usb_psy, 0);
+		power_supply_set_chg_present(chip->usb_psy, 0);
+		power_supply_set_online(chip->usb_psy, 0);
+		if (!chip->factory_mode)
 			break;
-		default:
-			break;
-		}
+
+		while (is_usb_present(chip))
+			msleep(100);
+		dev_warn(chip->dev, "VBUS UV wait 1 sec!\n");
+		/* Delay 1 sec to allow more VBUS decay */
+		msleep(1000);
+		break;
+	default:
+		break;
 	}
 	return NOTIFY_DONE;
 }

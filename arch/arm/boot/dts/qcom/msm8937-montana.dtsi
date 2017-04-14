@@ -14,6 +14,7 @@
 #include "dsi-panel-mot-tianma-521-1080p-video.dtsi"
 #include "dsi-panel-mot-inx-521-1080p-video.dtsi"
 #include "msm8937-camera-sensor-mot-montana.dtsi"
+#include "msm8937-montana-fps.dtsi"
 
  / {
 	model = "montana";
@@ -31,6 +32,68 @@
 		gpio = <&tlmm 59 0>;
 		startup-delay-us = <300>;
 		enable-active-high;
+	};
+
+	dummy_vreg: dummy_vreg {
+		compatible = "regulator-fixed";
+		status = "ok";
+		regulator-name = "dummy_vreg";
+		regulator-always-on;
+	};
+
+	ospl {
+		compatible = "mmi,ospl2xx";
+		status = "ok";
+		mmi,ospl-tune-index = <0 1 2 3>;
+		mmi,ospl-afe-port-id = <0x1016 0x1017>;
+		mmi,ospl-left-feedback;
+	};
+
+	sound {
+		qcom,msm-mbhc-hphl-swh = <1>;
+		qcom,msm-mbhc-gnd-swh = <0>;
+		qcom,msm-ext-pa = "quinary";
+		/delete-property/ qcom,cdc-us-euro-gpios;
+		/delete-property/ qcom,msm-micbias1-ext-cap;
+		/delete-property/ qcom,msm-micbias2-ext-cap;
+		qcom,msm-gpios =
+			"pri_i2s",
+			"quin_i2s",
+			"cs35l35_mclk";
+		qcom,pinctrl-names =
+			"all_off",
+			"pri_i2s_act",
+			"quin_act",
+			"quin_pri_i2s_act",
+			"cs35l35_mclk_act",
+			"cs35l35_mclk_pri_i2s_act",
+			"cs35l35_mclk_quin_act",
+			"cs35l35_mclk_quin_pri_i2s_act";
+		pinctrl-names =
+			"all_off",
+			"pri_i2s_act",
+			"quin_act",
+			"quin_pri_i2s_act",
+			"cs35l35_mclk_act",
+			"cs35l35_mclk_pri_i2s_act",
+			"cs35l35_mclk_quin_act",
+			"cs35l35_mclk_quin_pri_i2s_act";
+		pinctrl-0 = <&cdc_pdm_lines_sus &cdc_pdm_lines_2_sus
+			&pri_tlmm_lines_sus &pri_tlmm_ws_sus &cs35l35_mclk_off>;
+		pinctrl-1 = <&cdc_pdm_lines_act &cdc_pdm_lines_2_act
+			&pri_tlmm_lines_sus &pri_tlmm_ws_sus &cs35l35_mclk_off>;
+		pinctrl-2 = <&cdc_pdm_lines_sus &cdc_pdm_lines_2_sus
+			&pri_tlmm_lines_act &pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-3 = <&cdc_pdm_lines_act &cdc_pdm_lines_2_act
+			&pri_tlmm_lines_act &pri_tlmm_ws_act &cs35l35_mclk_off>;
+		pinctrl-4 = <&cdc_pdm_lines_sus &cdc_pdm_lines_2_sus
+			&pri_tlmm_lines_sus &pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-5 = <&cdc_pdm_lines_act &cdc_pdm_lines_2_act
+			&pri_tlmm_lines_sus &pri_tlmm_ws_sus &cs35l35_mclk_on>;
+		pinctrl-6 = <&cdc_pdm_lines_sus &cdc_pdm_lines_2_sus
+			&pri_tlmm_lines_act &pri_tlmm_ws_act &cs35l35_mclk_on>;
+		pinctrl-7 = <&cdc_pdm_lines_act &cdc_pdm_lines_2_act
+			&pri_tlmm_lines_act &pri_tlmm_ws_act &cs35l35_mclk_on>;
 	};
 
 	i2c_5: i2c@7af5000 { /* BLSP2 QUP1 */
@@ -57,6 +120,34 @@
 		dmas = <&dma_blsp2 4 64 0x20000020 0x20>,
 			<&dma_blsp2 5 32 0x20000020 0x20>;
 		dma-names = "tx", "rx";
+	};
+
+        spi_4: spi@78b8000 { /* BLSP1 QUP4 */
+                status = "disabled";
+                /delete-node/ stml0xx@0;
+        };
+
+	qcom,msm-thermal {
+		qcom,config-info = "montana";
+	};
+};
+
+&i2c_2 {
+	/delete-node/ adv7533@39;
+	/delete-node/ pericom-type-c@1d;
+
+	cs35l35@40 {
+		compatible = "cirrus,cs35l35";
+		reg = <0x40>;
+		reset-gpio = <&tlmm 38 0>;
+		irq-gpio = <&tlmm 45 1>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <45 8>;
+
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cs35l35_irq_default &cs35l35_reset_default>;
 	};
 };
 
@@ -198,5 +289,110 @@
 			drive-strength = <2>;
 		};
 	};
+
+	cs35l35_reset_default: cs35l35_default{
+		mux {
+			pins = "gpio38";
+			function = "gpio";
+		};
+
+		config {
+			pin = "gpio38";
+			output-high;
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+
+	cs35l35_irq_default: cs35l35_irq_default {
+		mux {
+			pins = "gpio45";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio45";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+
+	cs35l35_mclk {
+		cs35l35_mclk_on: cs35l35_mclk_on {
+			mux {
+				pins = "gpio25";
+				function = "sec_mi2s_mclk_a";
+			};
+
+			config {
+				pins = "gpio25";
+				drive-strength = <8>;
+				output-high;
+			};
+		};
+
+		cs35l35_mclk_off: cs35l35_mclk_off {
+			mux {
+				pins = "gpio25";
+				function = "sec_mi2s_mclk_a";
+			};
+
+			config {
+				pins = "gpio25";
+				drive-strength = <2>;
+				output-low;
+				bias-pull-down;
+			};
+		};
+	};
 };
 
+&pmi8950_charger {
+	qcom,fastchg-current-ma = <3000>;
+	qcom,chg-thermal-mitigation = <3000>, <2500>, <2000>, <1600>,
+		<1000>, <500>, <400>;
+	/delete-property/ qcom,dc-thermal-mitigation;
+	qcom,parallel-charge-current-map = <3000 3000 0>,
+					   <2500 2500 0>,
+					   <2000 2000 0>,
+					   <1600 1600 0>,
+					   <1000 1000 0>,
+					   <500 500 0>,
+					   <400 400 0>;
+	qcom,stepchg-voltage-mv = <4400>;
+	qcom,stepchg-current-ma = <3000>;
+	qcom,stepchg-taper-ma = <1800>;
+	qcom,stepchg-iterm-ma = <125>;
+};
+
+&pmi8950_fg {
+	qcom,ext-sense-type; /* External Sense Resistor */
+	qcom,thermal-coefficients =  /bits/ 16 <0xb785 0xb249 0x7135>;
+};
+
+&mot_batterydata {
+	df-serialnum = "SB18C15119";
+	#include "batterydata-hg30-atl.dtsi"
+};
+
+&usb_otg {
+	qcom,chg-dcp-icl = <1800>;
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa22 {
+		status = "okay";
+		pm8937_l22: regulator-l22 {
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-voltage = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			status = "okay";
+		};
+	};
+};
+
+&sdhc_2 {
+	cd-gpios = <&tlmm 67 0x0>;
+};

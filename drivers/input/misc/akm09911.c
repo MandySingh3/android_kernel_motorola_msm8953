@@ -1579,25 +1579,24 @@ static int akm09911_i2c_check_device(
 	if (err < 0)
 		return err;
 	/* Check read data */
-	if (akm->sense_info[0] == AK09911_WIA1_VALUE)
-	{
-		if(akm->sense_info[1] == AK09911_WIA2_VALUE)
-		{
+	if (akm->sense_info[0] == AK09911_WIA1_VALUE) {
+		if (akm->sense_info[1] == AK09911_WIA2_VALUE) {
 			dev_info(&client->dev, "AKM-Chip is AK09911");
-		}
-		else if(akm->sense_info[1] == AK09916_WIA2_VALUE)
-		{
+		} else if (akm->sense_info[1] == AK09916_WIA2_VALUE) {
 			dev_info(&client->dev, "AKM-Chip is AK09916");
-		}
-		else
-		{
-			dev_err(&client->dev,"The device is not AKM Compass.");
+		} else {
+			dev_err(&client->dev, "The device is not AKM Compass WIA2(0x%02x)", akm->sense_info[1]);
 			return -ENXIO;
 		}
+	} else {
+		dev_err(&client->dev, "The device is not AKM Compass WIA1(0x%02x)", akm->sense_info[0]);
+		return -ENXIO;
 	}
-	if(akm->sense_info[1] == AK09916_WIA2_VALUE)//ak9916 don't need read fuse, is value fixed 0x80
+
+	/* ak9916 don't need read fuse, is value fixed 0x00 */
+	if (akm->sense_info[1] == AK09916_WIA2_VALUE)
 	{
-		akm->sense_conf[0] = akm->sense_conf[1] = akm->sense_conf[2] = 0x80;
+		akm->sense_conf[0] = akm->sense_conf[1] = akm->sense_conf[2] = 0x00;
 	}
 	else
 	{
@@ -1623,6 +1622,7 @@ static int akm_compass_power_set(struct akm_compass_data *data, bool on)
 	int rc = 0;
 
 	if (!on && data->power_enabled) {
+#ifdef AKM_REGULATOR_CONTROL_ENABLE
 		rc = regulator_disable(data->vdd);
 		if (rc) {
 			dev_err(&data->i2c->dev,
@@ -1636,9 +1636,11 @@ static int akm_compass_power_set(struct akm_compass_data *data, bool on)
 				"Regulator vio disable failed rc=%d\n", rc);
 			goto err_vio_disable;
 		}
+#endif
 		data->power_enabled = false;
 		return rc;
 	} else if (on && !data->power_enabled) {
+#ifdef AKM_REGULATOR_CONTROL_ENABLE
 		rc = regulator_enable(data->vdd);
 		if (rc) {
 			dev_err(&data->i2c->dev,
@@ -1652,6 +1654,7 @@ static int akm_compass_power_set(struct akm_compass_data *data, bool on)
 				"Regulator vio enable failed rc=%d\n", rc);
 			goto err_vio_enable;
 		}
+#endif
 		data->power_enabled = true;
 
 		/*
@@ -1667,6 +1670,7 @@ static int akm_compass_power_set(struct akm_compass_data *data, bool on)
 		return rc;
 	}
 
+#ifdef AKM_REGULATOR_CONTROL_ENABLE
 err_vio_enable:
 	regulator_disable(data->vio);
 err_vdd_enable:
@@ -1676,6 +1680,7 @@ err_vio_disable:
 	if (regulator_enable(data->vdd))
 		dev_warn(&data->i2c->dev, "Regulator vdd enable failed\n");
 err_vdd_disable:
+#endif
 	return rc;
 }
 

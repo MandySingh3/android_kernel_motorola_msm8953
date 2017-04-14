@@ -71,6 +71,23 @@
 		/delete-node/ cs35l34@40;
 		/delete-node/ pnxxx@28;
 
+		stmvl53l1@29 {
+			status = "ok";
+			compatible = "st,stmvl53l1";
+			reg = <0x29>;
+			vdd-supply = <&pm8950_l22>;
+			gpios = <&tlmm 66 0>, <&tlmm 129 0>;
+			qcom,gpio-reset = <0>;
+			qcom,gpio-req-tbl-num = <0 1>;
+			qcom,gpio-req-tbl-flags = <0 1>;
+			qcom,gpio-req-tbl-label ="TOF_XSHUTDOWN","TOF_INT";
+			pinctrl-names = "laser_default", "laser_suspend";
+			pinctrl-0 = <&laser_active >;
+			pinctrl-1 = <&laser_suspend >;
+			st,sensorthreshold = <60 65>;
+			st,xtalkval = <19>;
+		};
+
 		analogix_anx7805@72 {
 			compatible = "analogix,anx7805";
 			status = "ok";
@@ -117,7 +134,7 @@
 			reg = <0x5A>;
 			/* voltage = *_voltage x 22 mV */
 			/* 2V for now */
-			ti,rated_voltage = /bits/ 8 <0x54>;
+			ti,rated_voltage = /bits/ 8 <0x57>;
 			ti,overdrive_voltage = /bits/ 8 <0x8D>;
 			/* LRA period = lra_freq x 24.39 us */
 			/* 175 Hz for now */
@@ -125,6 +142,8 @@
 			ti,lra_drive;
 			ti,auto_cal;
 			ti,auto_cal_time = /bits/ 8 <0x01>;
+			/* sample time 200us  */
+			ti,sample_time = /bits/ 8 <0x04>;
 			ti,nrst-gpio = <&tlmm 110 0>;
 			ti,npwr-gpio = <&tlmm 69 0>;
 			pinctrl-names = "haptic_default", "haptic_sleep";
@@ -194,7 +213,7 @@
 			#interrupt-cells = <2>;
 			wlf,reset = <&tlmm 68 0>;
 			wlf,out-mono = <1 0 0 0 0 0>;
-			wlf,micbias1 = <1800 1 1 1 1 0>;
+			wlf,micbias1 = <2600 1 1 1 1 0>;
 			wlf,micbias2 = <1800 1 1 1 1 0>;
 
 			wlf,micd-configs = <0 2 0>;
@@ -204,7 +223,7 @@
 			wlf,micd-detect-debounce = <600>;
 			wlf,inmode = <0 2 0>;
 			wlf,micd-ranges = <
-				100 226 430 115 1257 114
+				100 226 295 115 1257 114
 			>;
 
 			pinctrl-names = "default";
@@ -348,6 +367,19 @@
 		/delete-property/ qcom,hdmi-dba-codec-rx;
 		asoc-codec = <&stub_codec>;
 		asoc-codec-names = "msm-stub-codec.1";
+		cs47l35,dapm-routing =
+			"IN1AL", "MICBIAS2A",
+			"IN2R", "MICBIAS2B",
+			"IN2L", "MICBIAS2A",
+			"IN1BR", "MICBIAS1B";
+	};
+
+	ospl {
+		compatible = "mmi,ospl2xx";
+		status = "ok";
+		mmi,ospl-tune-index = <4 5 6 7>;
+		mmi,ospl-afe-port-id = <16384 16387>;
+		mmi,ospl-left-feedback;
 	};
 
 	qcom,msm-dai-mi2s {
@@ -642,6 +674,10 @@
 				<4400 2000 1600>;
 	qcom,auto-voltage-comp-mv = <150>;
 	qcom,enable-parameter-separate;
+	qcom,prop-flash-active;
+	qcom,enable-charging-limit;
+	qcom,upper-limit-capacity = <80>;
+	qcom,lower-limit-capacity = <60>;
 };
 
 /{

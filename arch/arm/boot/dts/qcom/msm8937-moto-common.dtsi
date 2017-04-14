@@ -14,13 +14,13 @@
 #include "msm-pmi8950.dtsi"
 #include "msm8937-pinctrl.dtsi"
 #include "msm8937-moto-pinctrl.dtsi"
+#include "carrier-channel-ids.dtsi"
 #include "dsi-panel-mot-dummy-qhd-video.dtsi"
 #include <moto-mem-reserve.h>
 
 / {
 	aliases {
 		i2c3 = &i2c_3;
-		spi6 = &spi_6;
 		/delete-property/ spi3;
 		/delete-property/ i2c5;
 		spi4 = &spi_4;
@@ -222,52 +222,21 @@
 			pinctrl-names = "default", "active";
 			pinctrl-0 = <&touch_reset_default &touch_int_default>;
 			pinctrl-1 = <&touch_reset_active &touch_int_active>;
-			config_modifier-names = "aod";
+			config_modifier-names = "aod", "fps";
 			config_modifier-aod {
 				aod-suspended {
 					/* Power->sleep; */
 					patch-data = "S";
 				};
 			};
+			config_modifier-fps {
+				enable-notification;
+				fps-active {
+					touch-clip-area = <300 1870 800 1919 1>;
+				};
+			};
 		};
 
-	};
-
-	spi_6: spi@7af6000 { /* BLSP2 QUP2 */
-		compatible = "qcom,spi-qup-v2";
-		status = "ok";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg-names = "spi_physical";
-		reg = <0x07af6000 0x600>;
-		interrupt-names = "spi_irq";
-		interrupts = <0 300 0>;
-		spi-max-frequency = <19200000>;
-
-		pinctrl-names = "spi_default", "spi_sleep";
-		pinctrl-0 = <&spi_6_active>;
-		pinctrl-1 = <&spi_6_sleep>;
-		qcom,infinite-mode = <0>;
-		qcom,master-id = <84>;
-		qcom,use-pinctrl;
-
-		fpc_fpc1020@0{
-			compatible = "fpc,fpc1020";
-			status = "ok";
-			reg = <0>;
-			interrupts = <128 0x0>;
-			spi-max-frequency = <4800000>;
-			fpc,gpio_irq = <&tlmm 128 0>;
-			fpc,gpio_rst = <&tlmm 127 0>;
-			fpc,gpio_ldo_en = <&tlmm 132 0>;
-			pinctrl-names = "default", "suspend";
-			pinctrl-0 = <&rst_active &int_active &ldo_en_active>;
-			pinctrl-1 = <&rst_suspend &int_suspend &ldo_en_suspend>;
-			fpc,txout_boost_enable;
-			clock-names = "iface_clk", "core_clk";
-			clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
-			<&clock_gcc clk_gcc_blsp2_qup2_spi_apps_clk>;
-		};
 	};
 
 	spi_7: spi@7af7000 { /* BLSP2 QUP2 */
@@ -567,6 +536,7 @@
 		2 &tlmm 67 0>;
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
 	cd-gpios = <&tlmm 67 0x1>;
+	qcom,cd-wakeup;
 
 	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000
 								200000000>;
