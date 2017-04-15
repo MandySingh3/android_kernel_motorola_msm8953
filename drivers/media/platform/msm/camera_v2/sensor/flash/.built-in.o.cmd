@@ -1,1 +1,0 @@
-cmd_drivers/media/platform/msm/camera_v2/sensor/flash/built-in.o :=  /home/mandysingh/RR/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-ld -EL    -r -o drivers/media/platform/msm/camera_v2/sensor/flash/built-in.o drivers/media/platform/msm/camera_v2/sensor/flash/msm_flash.o drivers/media/platform/msm/camera_v2/sensor/flash/msm_flash_gpio.o 

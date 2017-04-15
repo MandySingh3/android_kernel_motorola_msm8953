@@ -1,1 +1,0 @@
-cmd_drivers/dma/built-in.o :=  /home/mandysingh/RR/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-ld -EL    -r -o drivers/dma/built-in.o drivers/dma/dmaengine.o drivers/dma/of-dma.o drivers/dma/qcom-sps-dma.o drivers/dma/xilinx/built-in.o 

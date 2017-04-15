@@ -1,1 +1,0 @@
-cmd_drivers/input/misc/vl53L0/built-in.o :=  /home/mandysingh/RR/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-ld -EL    -r -o drivers/input/misc/vl53L0/built-in.o drivers/input/misc/vl53L0/stmvl53l0.o 
