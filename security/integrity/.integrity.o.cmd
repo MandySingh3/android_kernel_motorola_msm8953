@@ -1,0 +1,1 @@
+cmd_security/integrity/integrity.o := /home/mandysingh/RR/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-ld -EL    -r -o security/integrity/integrity.o security/integrity/iint.o security/integrity/integrity_audit.o 

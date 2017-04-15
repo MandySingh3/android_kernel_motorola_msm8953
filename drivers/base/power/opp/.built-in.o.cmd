@@ -1,0 +1,1 @@
+cmd_drivers/base/power/opp/built-in.o :=  /home/mandysingh/RR/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-ld -EL    -r -o drivers/base/power/opp/built-in.o drivers/base/power/opp/core.o drivers/base/power/opp/cpu.o 
